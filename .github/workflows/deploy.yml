@@ -12,7 +12,6 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
     
-    # Этап сборки на GitHub Runner
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
@@ -24,7 +23,6 @@ jobs:
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         echo "✅ Build completed on GitHub Runner"
     
-    # Этап развертывания на VM
     - name: Deploy to server via SSH
       uses: appleboy/ssh-action@v1.0.3
       with:
@@ -33,66 +31,14 @@ jobs:
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: 2222
         script: |
-          # Переходим в директорию приложения
           cd ~/app || exit 1
-          
-          # Обновляем код из репозитория
           git fetch origin
           git checkout ${{ github.ref_name }}
           git pull origin ${{ github.ref_name }}
-          
-          # Устанавливаем зависимости на сервере
           if [ -f requirements.txt ]; then
             pip3 install -r requirements.txt --user --break-system-packages
           fi
-          
-          # Перезапускаем приложение
-          sudo systemctl restart app.service || echo "Service restart may need manual attention"
-          
-          # Проверяем статус
+          sudo systemctl restart app.service
           sleep 3
           sudo systemctl status app.service --no-pager
-          
-          echo "✅ Deployment completed!"name: CD - Deploy Application
-
-on:
-  release:
-    types: [published]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Deploy to server via SSH
-      uses: appleboy/ssh-action@v1.0.3
-      with:
-        host: course.prafdin.ru
-        username: ${{ secrets.SSH_USERNAME }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        port: 2222
-        script: |
-          # Переходим в директорию приложения
-          cd ~/app || exit 1
-          
-          # Обновляем код из репозитория
-          git fetch origin
-          git checkout ${{ github.ref_name }}
-          git pull origin ${{ github.ref_name }}
-          
-          # Устанавливаем зависимости
-          if [ -f requirements.txt ]; then
-            pip3 install -r requirements.txt --user --break-system-packages
-          fi
-          
-          # Перезапускаем приложение
-          sudo systemctl restart app.service || echo "Service restart may need manual attention"
-          
-          # Проверяем статус
-          sleep 3
-          sudo systemctl status app.service --no-pager
-          
           echo "✅ Deployment completed!"

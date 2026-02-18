@@ -57,6 +57,16 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 2222
           script: |
+            # Устанавливаем Docker Compose plugin если его нет
+            if ! docker compose version > /dev/null 2>&1; then
+              echo "Installing Docker Compose plugin..."
+              mkdir -p ~/.docker/cli-plugins
+              curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose
+              chmod +x ~/.docker/cli-plugins/docker-compose
+              echo "Docker Compose installed:"
+              docker compose version
+            fi
+
             cd ~/catty-app
 
             # Логинимся в GitHub Container Registry
@@ -73,6 +83,6 @@ jobs:
             docker compose up -d
 
             # Проверяем что контейнеры запустились
-            sleep 10
+            sleep 15
             docker compose ps
             echo "✅ Deployment completed!"

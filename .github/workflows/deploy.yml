@@ -39,16 +39,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-      - name: Copy docker-compose.yaml to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: course.prafdin.ru
-          username: ${{ secrets.SSH_USERNAME }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: 2222
-          source: "docker-compose.yaml"
-          target: "~/catty-app"
-
       - name: Deploy to server via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -60,32 +50,35 @@ jobs:
           script: |
             # Устанавливаем Docker Compose plugin если его нет
             if ! docker compose version > /dev/null 2>&1; then
-              echo "Installing Docker Compose plugin..."
               mkdir -p ~/.docker/cli-plugins
               curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose
               chmod +x ~/.docker/cli-plugins/docker-compose
             fi
-            echo "Docker Compose version:"
             docker compose version
 
-            # Останавливаем ВСЕ контейнеры, которые могут занимать порт 8181
-            echo "Stopping all containers..."
-            docker stop $(docker ps -aq) || true
-            docker rm $(docker ps -aq) || true
+            # Останавливаем ВСЕ контейнеры чтобы освободить порты
+            docker stop $(docker ps -aq) 2>/dev/null || true
+            docker rm $(docker ps -aq) 2>/dev/null || true
+
+            # Создаём docker-compose.yaml на сервере
+            mkdir -p ~/catty-app
+            echo "c2VydmljZXM6CiAgZGI6CiAgICBpbWFnZTogbXlzcWw6OC4wCiAgICByZXN0YXJ0OiB1bmxlc3Mtc3RvcHBlZAogICAgZW52aXJvbm1lbnQ6CiAgICAgIE1ZU1FMX1JPT1RfUEFTU1dPUkQ6IG15cGFzcwogICAgICBNWVNRTF9EQVRBQkFTRTogY2F0dHlfcmVtaW5kZXJzCiAgICBwb3J0czoKICAgICAgLSAiMzMwNjozMzA2IgogICAgdm9sdW1lczoKICAgICAgLSBkYi1kYXRhOi92YXIvbGliL215c3FsCiAgICBoZWFsdGhjaGVjazoKICAgICAgdGVzdDogWyJDTUQiLCAibXlzcWxhZG1pbiIsICJwaW5nIiwgIi1oIiwgImxvY2FsaG9zdCJdCiAgICAgIGludGVydmFsOiAxMHMKICAgICAgdGltZW91dDogNXMKICAgICAgcmV0cmllczogNQoKICBhcHA6CiAgICBpbWFnZTogZ2hjci5pby9ncmlnb3J5MTYzL2NhdHR5LXJlbWluZGVycy1hcHA6bGF0ZXN0CiAgICByZXN0YXJ0OiB1bmxlc3Mtc3RvcHBlZAogICAgcG9ydHM6CiAgICAgIC0gIjgxODE6ODE4MSIKICAgIGRlcGVuZHNfb246CiAgICAgIGRiOgogICAgICAgIGNvbmRpdGlvbjogc2VydmljZV9oZWFsdGh5Cgp2b2x1bWVzOgogIGRiLWRhdGE6Cg==" | base64 -d > ~/catty-app/docker-compose.yaml
 
             cd ~/catty-app
+            echo "=== docker-compose.yaml ==="
+            cat docker-compose.yaml
 
-            # Логинимся в GitHub Container Registry
+            # Логинимся в GHCR
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            # Скачиваем новый образ приложения
+            # Скачиваем новый образ
             docker pull ghcr.io/grigory163/catty-reminders-app:latest
 
-            # Запускаем через docker compose
+            # Запускаем
             docker compose up -d
 
-            # Проверяем что контейнеры запустились
+            # Ждём и проверяем
             sleep 15
             docker compose ps
             docker compose logs app --tail 30
-            echo "✅ Deployment completed!"
+            echo "Deployment completed!"
